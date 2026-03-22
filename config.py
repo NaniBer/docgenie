@@ -17,8 +17,11 @@ class Settings(BaseSettings):
     OPENROUTER_API_KEY: Optional[str] = None
     
     # Chunking Settings
-    CHUNK_SIZE: int = 512
+    CHUNK_SIZE: int = 300
     CHUNK_OVERLAP: int = 50
+    
+    # Retrieval Settings
+    DEFAULT_K: int = 6
     
     class Config:
         env_file = ".env"

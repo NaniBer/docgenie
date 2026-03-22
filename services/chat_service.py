@@ -41,23 +41,28 @@ class ChatService:
         )
     
     @staticmethod
-    def get_retriever(customer_id: str, api_key: str = None):
+    def get_retriever(customer_id: str, api_key: str = None, k: int = None):
         """
         Get retriever from ChromaDB for a customer.
         
         Args:
-            customer_id: Unique identifier for the customer
+            customer_id: Unique identifier for customer
             api_key: Cohere API key (optional)
+            k: Number of chunks to retrieve (defaults to config)
         
         Returns:
             ChromaDB retriever
         """
         from services.vector_store import VectorStore
         vector_store = VectorStore.get_collection(customer_id, api_key)
-        return vector_store.as_retriever(search_kwargs={"k": 4})
+        
+        # Use provided k or default from config
+        k_value = k or settings.DEFAULT_K
+        
+        return vector_store.as_retriever(search_kwargs={"k": k_value})
     
     @staticmethod
-    def get_qa_chain(customer_id: str, google_api_key: str = None, cohere_api_key: str = None):
+    def get_qa_chain(customer_id: str, google_api_key: str = None, cohere_api_key: str = None, k: int = None):
         """
         Get RetrievalQA chain for a customer.
         
@@ -65,12 +70,13 @@ class ChatService:
             customer_id: Unique identifier for the customer
             google_api_key: Google AI Studio API key (optional)
             cohere_api_key: Cohere API key (optional)
+            k: Number of chunks to retrieve (defaults to config)
         
         Returns:
             RetrievalQA chain instance
         """
         llm = ChatService.get_google_llm(google_api_key)
-        retriever = ChatService.get_retriever(customer_id, cohere_api_key)
+        retriever = ChatService.get_retriever(customer_id, cohere_api_key, k)
         
         # Create RetrievalQA chain
         qa_chain = RetrievalQA.from_chain_type(

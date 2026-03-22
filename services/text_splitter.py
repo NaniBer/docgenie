@@ -1,7 +1,8 @@
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_core.documents import Document
-from typing import List
+from typing import List, Dict
 from config import settings
+import re
 
 class TextSplitter:
     """
@@ -51,6 +52,67 @@ class TextSplitter:
         """
         splitter = TextSplitter.get_splitter(**kwargs)
         return splitter.split_documents(documents)
+    
+    @staticmethod
+    def detect_section(content: str) -> str:
+        """
+        Detect the section of a document based on content.
+        
+        Args:
+            content: Document content
+        
+        Returns:
+            Section name or "General"
+        """
+        # Check for common section headers
+        section_patterns = [
+            (r'Products and Services', 'Products'),
+            (r'Company Culture and Values', 'Values'),
+            (r'Our Mission', 'Mission'),
+            (r'Intelligent Chatbot', 'Chatbot'),
+            (r'Data Analytics', 'Analytics'),
+            (r'Cloud Infrastructure', 'Infrastructure'),
+            (r'Achievements', 'Achievements'),
+            (r'Contact Information', 'Contact'),
+        ]
+        
+        for pattern, section_name in section_patterns:
+            if re.search(pattern, content, re.IGNORECASE):
+                return section_name
+        
+        return "General"
+    
+    @staticmethod
+    def split_documents_with_metadata(documents: List[Document], **kwargs) -> List[Document]:
+        """
+        Split documents into chunks with enhanced metadata including section detection.
+        
+        Args:
+            documents: List of LangChain Document objects
+            **kwargs: Additional arguments for the splitter
+        
+        Returns:
+            List of split Document objects with section metadata
+        """
+        splitter = TextSplitter.get_splitter(**kwargs)
+        chunks = []
+        
+        for doc in documents:
+            # Split into chunks
+            doc_chunks = splitter.split_documents([doc])
+            
+            # Detect section for each chunk
+            for chunk in doc_chunks:
+                section = TextSplitter.detect_section(chunk.page_content)
+                
+                # Update metadata with section information
+                chunk.metadata = {
+                    **chunk.metadata,
+                    "section": section
+                }
+                chunks.append(chunk)
+        
+        return chunks
     
     @staticmethod
     def split_text(text: str, **kwargs) -> List[str]:
