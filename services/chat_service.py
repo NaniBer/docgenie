@@ -92,48 +92,79 @@ class ChatService:
     async def query(
         customer_id: str,
         question: str,
-        google_api_key: str = None,
-        cohere_api_key: str = None
+        api_key: str = None
     ) -> Dict[str, Any]:
         """
         Query the chatbot and get an answer with sources.
         
         Args:
-            customer_id: Unique identifier for the customer
+            customer_id: Unique identifier for customer (API key)
             question: User's question
-            google_api_key: Google AI Studio API key (optional)
-            cohere_api_key: Cohere API key (optional)
+            api_key: Customer API key (also used as customer_id)
         
         Returns:
             Dictionary with answer, sources, and metadata
         """
+        import time
+        import os
+        from dotenv import load_dotenv
+        from config import settings
+        
+        # Load environment variables
+        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        env_path = os.path.join(project_root, '.env')
+        load_dotenv(env_path)
+        
+        # Use api_key for both services (Google AI + Cohere)
+        google_api_key = api_key or os.getenv("GOOGLE_API_KEY") or settings.GOOGLE_API_KEY
+        cohere_api_key = api_key or os.getenv("COHERE_API_KEY") or settings.COHERE_API_KEY
+        
+        # Validate API key is provided
+        if not google_api_key and not cohere_api_key:
+            raise ValueError("API key is required")
+        
+        start_time = time.time()
+        
         try:
-            # Get or create QA chain
-            qa_chain = ChatService.get_qa_chain(customer_id, google_api_key, cohere_api_key)
+            # Use api_key as customer_id for vector store and retrieval
+            llm = ChatService.get_google_llm(google_api_key)
+            retriever = ChatService.get_retriever(api_key, cohere_api_key, k)
             
-            # Invoke the chain
-            result = await qa_chain.ainvoke({
-                "query": question
-            })
+            # Create RetrievalQA chain
+            qa_chain = RetrievalQA.from_chain_type(
+                llm=llm,
+                retriever=retriever,
+                return_source_documents=True,
+                chain_type="stuff"
+            )
+            
+            # Query the chain
+            result = await qa_chain.ainvoke({"query": question})
+            
+            end_time = time.time()
+            query_time = (end_time - start_time) * 1000  # Convert to milliseconds
             
             # Prepare response
-            response = {
-                "answer": result["result"],
-                "source_documents": result.get("source_documents", []),
-                "customer_id": customer_id
-            }
+            answer = result.get("result", "")
+            source_documents = result.get("source_documents", [])
             
             # Extract sources
-            if "source_documents" in result and result["source_documents"]:
-                sources = []
-                for doc in result["source_documents"]:
+            sources = []
+            if source_documents:
+                for doc in source_documents:
                     source = {
                         "content": doc.page_content,
                         "metadata": doc.metadata,
                         "source": doc.metadata.get("source", "Unknown")
                     }
                     sources.append(source)
-                response["sources"] = sources
+            
+            response = {
+                "answer": answer,
+                "sources": sources,
+                "customer_id": api_key,
+                "query_time_ms": query_time
+            }
             
             return response
             

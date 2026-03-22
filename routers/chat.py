@@ -8,8 +8,6 @@ router = APIRouter()
 class ChatRequest(BaseModel):
     query: str
     api_key: Optional[str] = None
-    cohere_api_key: Optional[str] = None
-    google_api_key: Optional[str] = None
     k: Optional[int] = None
 
 class SourceDocument(BaseModel):
@@ -57,18 +55,15 @@ async def query_chat(request: ChatRequest):
         raise HTTPException(status_code=400, detail="Cohere API key is required")
     
     start_time = time.time()
-    
-    try:
-        # Use customer_id from api_key or default
-        customer_id = request.api_key or "default"
         
-        # Query the chatbot service
-        response = await ChatService.query(
-            customer_id=customer_id,
-            question=request.query,
-            google_api_key=request.google_api_key,
-            cohere_api_key=request.cohere_api_key
-        )
+        try:
+            # Use api_key as customer_id
+            response = await ChatService.query(
+                customer_id=request.api_key or "default",
+                question=request.query,
+                api_key=request.api_key,
+                k=request.k
+            )
         
         end_time = time.time()
         query_time = (end_time - start_time) * 1000  # Convert to milliseconds

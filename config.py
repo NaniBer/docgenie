@@ -2,6 +2,7 @@ from pydantic_settings import BaseSettings
 from typing import Optional
 
 class Settings(BaseSettings):
+    # API Key for customer identification
     API_KEY: Optional[str] = None
     
     # Vector Database
@@ -10,7 +11,7 @@ class Settings(BaseSettings):
     # Embedding Model
     EMBEDDING_MODEL: str = "sentence-transformers/all-MiniLM-L6-v2"
     
-    # AI Model (Cohere)
+    # AI Model (Cohere for embeddings, Google AI for generation)
     AI_MODEL_PROVIDER: str = "cohere"
     COHERE_API_KEY: Optional[str] = None
     GOOGLE_API_KEY: Optional[str] = None
