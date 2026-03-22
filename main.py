@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from routers import upload, chat, api_keys
+from routers import upload, chat, api_keys, api_keys
 
 app = FastAPI(
     title="DocGenie API",

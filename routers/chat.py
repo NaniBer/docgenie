@@ -8,6 +8,8 @@ router = APIRouter()
 class ChatRequest(BaseModel):
     query: str
     api_key: Optional[str] = None
+    cohere_api_key: Optional[str] = None
+    google_api_key: Optional[str] = None
     k: Optional[int] = None
 
 class SourceDocument(BaseModel):
@@ -52,11 +54,17 @@ async def query_chat(request: ChatRequest):
     
     # Validate at least one API key is provided for embeddings
     if not request.cohere_api_key and not os.getenv("COHERE_API_KEY"):
+    # Validate at least one API key is provided for LLM
+    if not request.google_api_key and not os.getenv("GOOGLE_API_KEY"):
+        raise HTTPException(status_code=400, detail="Google AI API key is required")
+    
+    # Validate at least one API key is provided for embeddings
+    if not request.cohere_api_key and not os.getenv("COHERE_API_KEY"):
         raise HTTPException(status_code=400, detail="Cohere API key is required")
     
     start_time = time.time()
-        
-        try:
+    
+    try:
             # Use api_key as customer_id
             response = await ChatService.query(
                 customer_id=request.api_key or "default",
