@@ -115,20 +115,22 @@ class ChatService:
         env_path = os.path.join(project_root, '.env')
         load_dotenv(env_path)
         
-        # Use api_key for both services (Google AI + Cohere)
-        google_api_key = api_key or os.getenv("GOOGLE_API_KEY") or settings.GOOGLE_API_KEY
-        cohere_api_key = api_key or os.getenv("COHERE_API_KEY") or settings.COHERE_API_KEY
+        # Use environment/config keys for AI services (api_key parameter is customer_id only)
+        google_api_key = os.getenv("GOOGLE_API_KEY") or settings.GOOGLE_API_KEY
+        cohere_api_key = os.getenv("COHERE_API_KEY") or settings.COHERE_API_KEY
         
-        # Validate API key is provided
-        if not google_api_key and not cohere_api_key:
-            raise ValueError("API key is required")
+        # Validate API keys are provided
+        if not google_api_key:
+            raise ValueError("Google AI API key is required. Set GOOGLE_API_KEY in .env")
+        if not cohere_api_key:
+            raise ValueError("Cohere API key is required. Set COHERE_API_KEY in .env")
         
         start_time = time.time()
         
         try:
             # Use api_key as customer_id for vector store and retrieval
             llm = ChatService.get_google_llm(google_api_key)
-            retriever = ChatService.get_retriever(api_key, cohere_api_key, k)
+            retriever = ChatService.get_retriever(api_key, cohere_api_key)
             
             # Create RetrievalQA chain
             qa_chain = RetrievalQA.from_chain_type(

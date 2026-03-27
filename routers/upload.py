@@ -1,12 +1,10 @@
 # API Router for document upload and management
 
-from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi import APIRouter, UploadFile, File, HTTPException, Depends
+from pydantic import BaseModel
 from typing import List
 import os
-import sys
-
-# Add parent directory to path for importing services
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from routers.auth import get_api_key, get_collection_name
 
 from services.document_loader import DocumentLoader
 from services.text_splitter import TextSplitter
@@ -15,179 +13,207 @@ from services.vector_store import VectorStore
 
 router = APIRouter()
 
+
 class DocumentProcessingResponse(BaseModel):
     filename: str
-    customer_id: str
+    api_key: str
     chunks_created: int
     chunks_stored: int
     file_size: int
     processing_time: str
 
+
 class UploadStatsResponse(BaseModel):
-    customer_id: str
+    api_key: str
+    collection_name: str
     total_chunks: int
-    chunk_size_setting: int
-    chunk_overlap_setting: int
+
 
 @router.post("/upload")
-async def upload_document(file: UploadFile = File(...), api_key: str = None):
+async def upload_document(
+    file: UploadFile = File(...),
+    api_key: str = Depends(get_api_key)
+):
     """
     Upload and process a document.
-    
+
     This endpoint performs the complete RAG pipeline:
     1. Load document
     2. Split into chunks
     3. Embed chunks
-    4. Store in ChromaDB
+    4. Store in ChromaDB with API key in metadata
+
+    Requires valid API key via X-API-Key header.
     """
     try:
         # Read file content
         content = await file.read()
         filename = file.filename
-        
-        # Get customer ID from API key (or use default)
-        customer_id = api_key or "default"
-        
+
+        # Get collection name for this API key
+        collection_name = get_collection_name(api_key)
+
         # Step 1: Load document
         import tempfile
         with tempfile.NamedTemporaryFile(mode='wb', delete=False, suffix=os.path.splitext(filename)[1]) as temp_file:
             temp_file.write(content)
             temp_file_path = temp_file.name
-        
+
         try:
             # Load document
             documents = DocumentLoader.load_document(temp_file_path)
-            
+
             # Step 2: Split into chunks
             chunks = TextSplitter.split_documents(documents)
-            
-            # Step 3: Embed chunks
+
+            # Step 3: Add API key to metadata
+            for chunk in chunks:
+                if chunk.metadata is None:
+                    chunk.metadata = {}
+                chunk.metadata["api_key"] = api_key
+                chunk.metadata["source_file"] = filename
+
+            # Step 4: Embed chunks
             texts = [chunk.page_content for chunk in chunks]
             embeddings = EmbeddingService.embed_documents(texts)
-            
-            # Step 4: Store in ChromaDB
-            count = VectorStore.add_documents(customer_id, chunks)
-            
+
+            # Step 5: Store in ChromaDB
+            # Use VectorStore static method to add documents
+            count = VectorStore.add_documents(api_key, chunks)
+
             return DocumentProcessingResponse(
                 filename=filename,
-                customer_id=customer_id,
+                api_key=api_key,
                 chunks_created=len(chunks),
                 chunks_stored=count,
                 file_size=len(content),
                 processing_time="completed"
             )
-        
+
         finally:
             # Clean up temporary file
             if os.path.exists(temp_file_path):
                 os.remove(temp_file_path)
-        
+
+    except HTTPException:
+        raise
     except Exception as e:
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Error processing document: {str(e)}")
 
+
 @router.post("/upload-multiple")
-async def upload_multiple_documents(files: List[UploadFile] = File(...), api_key: str = None):
+async def upload_multiple_documents(
+    files: List[UploadFile] = File(...),
+    api_key: str = Depends(get_api_key)
+):
     """
     Upload and process multiple documents.
+
+    Requires valid API key via X-API-Key header.
     """
     try:
-        # Get customer ID from API key (or use default)
-        customer_id = api_key or "default"
-        
         results = []
         total_chunks = 0
         total_stored = 0
         import tempfile
-        
+
         for file in files:
             # Read file content
             content = await file.read()
             filename = file.filename
-            
+
             # Create temporary file for DocumentLoader
             with tempfile.NamedTemporaryFile(mode='wb', delete=False, suffix=os.path.splitext(filename)[1]) as temp_file:
                 temp_file.write(content)
                 temp_file_path = temp_file.name
-            
+
             try:
                 # Step 1: Load document
                 documents = DocumentLoader.load_document(temp_file_path)
-                
+
                 # Step 2: Split into chunks
                 chunks = TextSplitter.split_documents(documents)
-                
-                # Step 3: Embed chunks
+
+                # Step 3: Add API key to metadata
+                for chunk in chunks:
+                    if chunk.metadata is None:
+                        chunk.metadata = {}
+                    chunk.metadata["api_key"] = api_key
+                    chunk.metadata["source_file"] = filename
+
+                # Step 4: Embed chunks
                 texts = [chunk.page_content for chunk in chunks]
                 embeddings = EmbeddingService.embed_documents(texts)
-                
-                # Step 4: Store in ChromaDB
-                count = VectorStore.add_documents(customer_id, chunks)
-                
+
+                # Step 5: Store in ChromaDB
+                collection_name = get_collection_name(api_key)
+                vector_store = VectorStore.get_collection(api_key)
+                count = vector_store.add_documents(chunks)
+
                 total_chunks += len(chunks)
                 total_stored += count
-                
+
                 results.append({
                     "filename": filename,
                     "status": "processed",
                     "chunks_created": len(chunks),
                     "chunks_stored": count
                 })
-            
+
             finally:
                 # Clean up temporary file
                 if os.path.exists(temp_file_path):
                     os.remove(temp_file_path)
-        
+
         return {
             "message": "Documents processed and stored successfully",
-            "customer_id": customer_id,
+            "api_key": api_key,
             "total_files": len(files),
             "total_chunks_created": total_chunks,
             "total_chunks_stored": total_stored,
             "files": results
         }
-        
+
+    except HTTPException:
+        raise
     except Exception as e:
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Error processing documents: {str(e)}")
 
+
 @router.get("/stats")
-async def get_document_stats(api_key: str = None):
+async def get_document_stats(api_key: str = Depends(get_api_key)):
     """
     Get statistics about documents in the vector store.
+
+    Requires valid API key via X-API-Key header.
     """
     try:
-        customer_id = api_key or "default"
-        
-        from collections import Counter
+        collection_name = get_collection_name(api_key)
+
         import chromadb
         from config import settings
-        
+
         client = chromadb.PersistentClient(path=settings.CHROMA_PERSIST_DIRECTORY)
-        collection_name = f"customer_{customer_id}"
-        
+
         try:
             collection = client.get_collection(name=collection_name)
-            
+
             if collection:
                 count = collection.count()
-                
-                # Get chunk size distribution
-                # Note: This is a simplified approach
+
                 return UploadStatsResponse(
-                    customer_id=customer_id,
+                    api_key=api_key,
                     collection_name=collection_name,
-                    total_chunks=count,
-                    chunk_size_setting=settings.CHUNK_SIZE,
-                    chunk_overlap_setting=settings.CHUNK_OVERLAP
+                    total_chunks=count
                 )
             else:
                 return {
-                    "message": "No documents found for this customer",
-                    "customer_id": customer_id,
+                    "message": "No documents found for this API key",
+                    "api_key": api_key,
                     "collection_name": collection_name,
                     "total_chunks": 0
                 }
@@ -196,20 +222,30 @@ async def get_document_stats(api_key: str = None):
             traceback.print_exc()
             raise HTTPException(status_code=500, detail=f"Error getting statistics: {str(e)}")
 
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Error getting statistics: {str(e)}")
+
+
 @router.delete("/clear")
-async def clear_documents(api_key: str = None):
+async def clear_documents(api_key: str = Depends(get_api_key)):
     """
-    Clear all documents for a customer.
+    Clear all documents for an API key.
+
+    Requires valid API key via X-API-Key header.
     """
     try:
-        customer_id = api_key or "default"
-        
-        VectorStore.delete_collection(customer_id)
-        
+        VectorStore.delete_collection(api_key)
+
         return {
             "message": "Documents cleared successfully",
-            "customer_id": customer_id
+            "api_key": api_key
         }
+    except HTTPException:
+        raise
     except Exception as e:
         import traceback
         traceback.print_exc()
