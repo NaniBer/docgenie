@@ -79,7 +79,9 @@ async def upload_document(
 
             # Step 5: Store in ChromaDB
             # Use VectorStore static method to add documents
-            count = VectorStore.add_documents(api_key, chunks)
+            # Note: First parameter is customer_id (which is api_key in our design)
+            # Third parameter is for Cohere API key
+            count = VectorStore.add_documents(api_key, chunks, api_key)
 
             return DocumentProcessingResponse(
                 filename=filename,

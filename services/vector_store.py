@@ -114,7 +114,13 @@ class VectorStore:
         
         # Note: ChromaDB automatically persists when persist_directory is set
         # No need to call persist() explicitly
-        
+
+        # Force persistence by accessing the _collection attribute
+        try:
+            _ = vector_store._collection
+        except Exception:
+            pass
+
         return len(ids)
     
     @staticmethod

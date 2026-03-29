@@ -49,7 +49,8 @@ async def query_chat(
         response = await ChatService.query(
             customer_id=api_key,  # Use API key as collection identifier
             question=request.query,
-            api_key=api_key
+            api_key=api_key,
+            k=request.k
         )
 
         end_time = time.time()

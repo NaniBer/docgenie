@@ -1,0 +1,80 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+env/
+ENV/
+.venv
+
+# Environment Variables (don't include actual keys in image)
+.env
+.env.local
+.env.*.local
+
+# ChromaDB data (will be mounted as volume)
+chroma_db/
+.chroma/
+
+# Uploads
+uploads/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Testing
+tests/
+test_*.py
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Documentation (not needed in image)
+README.md
+plan.md
+docs/
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+
+# Docker files (don't include Docker itself)
+Dockerfile
+docker-compose.yml
+.dockerignore

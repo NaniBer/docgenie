@@ -34,7 +34,7 @@ class ChatService:
             raise ValueError("Google AI API key is required. Set GOOGLE_API_KEY in .env or pass as parameter.")
         
         return ChatGoogleGenerativeAI(
-            model="gemini-2.5-flash-lite",
+            model="gemini-2.0-flash",
             google_api_key=key,
             temperature=0.7,
             convert_system_message_to_human=True
@@ -92,16 +92,18 @@ class ChatService:
     async def query(
         customer_id: str,
         question: str,
-        api_key: str = None
+        api_key: str = None,
+        k: int = None
     ) -> Dict[str, Any]:
         """
         Query the chatbot and get an answer with sources.
-        
+
         Args:
             customer_id: Unique identifier for customer (API key)
             question: User's question
             api_key: Customer API key (also used as customer_id)
-        
+            k: Number of chunks to retrieve (defaults to config DEFAULT_K)
+
         Returns:
             Dictionary with answer, sources, and metadata
         """
@@ -130,36 +132,49 @@ class ChatService:
         try:
             # Use api_key as customer_id for vector store and retrieval
             llm = ChatService.get_google_llm(google_api_key)
-            retriever = ChatService.get_retriever(api_key, cohere_api_key)
-            
-            # Create RetrievalQA chain
-            qa_chain = RetrievalQA.from_chain_type(
-                llm=llm,
-                retriever=retriever,
-                return_source_documents=True,
-                chain_type="stuff"
+
+            # Retrieve relevant documents using similarity search
+            from services.vector_store import VectorStore
+            k_value = k or settings.DEFAULT_K
+            docs = VectorStore.similarity_search(api_key, question, k_value, cohere_api_key)
+
+            # Combine documents for context
+            context = "\n\n".join([doc.page_content for doc in docs])
+
+            # Create prompt with context
+            from langchain_core.prompts import PromptTemplate
+            prompt = PromptTemplate.from_template(
+                """Use the following pieces of context to answer the question at the end.
+                If you don't know the answer, just say that you don't know, don't try to make up an answer.
+
+                Context:
+                {context}
+
+                Question:
+                {question}
+
+                Answer:"""
             )
-            
-            # Query the chain
-            result = await qa_chain.ainvoke({"query": question})
+
+            # Invoke LLM with context
+            from langchain_core.runnables import RunnablePassthrough
+            from langchain_core.output_parsers import StrOutputParser
+
+            chain = prompt | llm | StrOutputParser()
+            answer = await chain.ainvoke({"context": context, "question": question})
             
             end_time = time.time()
             query_time = (end_time - start_time) * 1000  # Convert to milliseconds
-            
-            # Prepare response
-            answer = result.get("result", "")
-            source_documents = result.get("source_documents", [])
-            
-            # Extract sources
+
+            # Extract sources from retrieved docs
             sources = []
-            if source_documents:
-                for doc in source_documents:
-                    source = {
-                        "content": doc.page_content,
-                        "metadata": doc.metadata,
-                        "source": doc.metadata.get("source", "Unknown")
-                    }
-                    sources.append(source)
+            for doc in docs:
+                source = {
+                    "content": doc.page_content,
+                    "metadata": doc.metadata,
+                    "source": doc.metadata.get("source", "Unknown")
+                }
+                sources.append(source)
             
             response = {
                 "answer": answer,
