@@ -1,37 +1,22 @@
-version: '3.8'
-
 services:
   docgenie:
-    image: docgenie/docgenie:latest
-    # Or build from local Dockerfile:
-    # build: .
+    build: .
     container_name: docgenie
     restart: unless-stopped
     ports:
       - "8000:8000"
     volumes:
-      # Persist ChromaDB data
       - chroma_data:/app/chroma_db
-    environment:
-      # API Keys (set these in your environment or .env file)
-      - COHERE_API_KEY=${COHERE_API_KEY}
-      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
-      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
-
-      # Optional Configuration
-      - CHUNK_SIZE=${CHUNK_SIZE:-512}
-      - CHUNK_OVERLAP=${CHUNK_OVERLAP:-50}
-      - DEFAULT_K=${DEFAULT_K:-6}
-      - CHROMA_PERSIST_DIRECTORY=/app/chroma_db
     env_file:
       - .env
+    environment:
+      - CHROMA_PERSIST_DIRECTORY=/app/chroma_db
     healthcheck:
       test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8000/health', timeout=5)"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 5s
+      start_period: 10s
 
 volumes:
   chroma_data:
-    driver: local
