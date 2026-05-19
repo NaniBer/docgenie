@@ -1,10 +1,10 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from routers import upload, chat, api_keys
+from routers import upload, chat
 
 app = FastAPI(
-    title="DocGenie API",
-    description="Turnkey AI Chatbot API for document Q&A - Free Tier",
+    title="DocGenie",
+    description="Self-hosted RAG chatbot for document Q&A",
     version="1.0.0"
 )
 
@@ -18,20 +18,23 @@ app.add_middleware(
 
 app.include_router(upload.router, prefix="/api/v1", tags=["upload"])
 app.include_router(chat.router, prefix="/api/v1", tags=["chat"])
-app.include_router(api_keys.router, prefix="/api/v1", tags=["api_keys"])
+
 
 @app.get("/")
 async def root():
     return {
-        "message": "DocGenie API - Free Tier AI Chatbot Service",
+        "message": "DocGenie - Self-hosted RAG Chatbot",
         "docs": "/docs",
         "endpoints": {
-            "generate_key": "POST /api/v1/keys/generate",
-            "upload": "POST /api/v1/documents/upload",
-            "chat": "POST /api/v1/chat/query",
+            "upload": "POST /api/v1/upload",
+            "upload_multiple": "POST /api/v1/upload-multiple",
+            "chat": "POST /api/v1/query",
+            "stats": "GET /api/v1/stats",
+            "clear": "DELETE /api/v1/clear",
             "health": "GET /health"
         }
     }
+
 
 @app.get("/health")
 async def health():

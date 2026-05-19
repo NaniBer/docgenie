@@ -15,3 +15,6 @@ langchain-openai>=0.0.2
 langchain-google-genai>=1.0.0
 langchain-cohere>=0.1.0
 langchain-chroma>=0.1.0
+
+# For self-hosted mode (local embeddings)
+sentence-transformers>=2.2.0

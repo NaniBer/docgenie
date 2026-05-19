@@ -1,147 +1,77 @@
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain.chains import RetrievalQA
-from langchain.prompts import PromptTemplate
-from langchain_core.documents import Document
-from langchain_core.output_parsers import StrOutputParser
-from typing import List, Optional, Dict, Any
+from langchain_community.chat_models import ChatOllama
+from langchain_openai import ChatOpenAI
+from typing import Dict, Optional
 from config import settings
 import os
 from dotenv import load_dotenv
 
-# Load environment variables from .env file
 load_dotenv()
 
+
 class ChatService:
-    """
-    Chat service using RetrievalQA with Google AI Studio for answer generation.
-    Integrates Cohere embeddings (query) + ChromaDB (retrieval) + Google AI (generation).
-    """
-    
+
     @staticmethod
-    def get_google_llm(api_key: str = None):
-        """
-        Get Google AI LLM instance for answer generation.
-        
-        Args:
-            api_key: Google AI Studio API key (defaults to env)
-        
-        Returns:
-            ChatGoogleGenerativeAI instance
-        """
-        key = api_key or os.getenv("GOOGLE_API_KEY") or settings.GOOGLE_API_KEY
-        
+    def get_llm():
+        if settings.MODE == "self-hosted":
+            return ChatOllama(
+                base_url=settings.OLLAMA_BASE_URL,
+                model=settings.OLLAMA_MODEL,
+                temperature=0.7
+            )
+        return ChatService._get_cloud_llm()
+
+    @staticmethod
+    def _get_cloud_llm():
+        provider = settings.LLM_PROVIDER
+        if provider == "google":
+            return ChatService._get_google_llm()
+        elif provider == "openrouter":
+            return ChatService._get_openrouter_llm()
+        raise ValueError(f"Unsupported LLM_PROVIDER: {provider}")
+
+    @staticmethod
+    def _get_openrouter_llm():
+        key = os.getenv("OPENROUTER_API_KEY") or settings.OPENROUTER_API_KEY
         if not key:
-            raise ValueError("Google AI API key is required. Set GOOGLE_API_KEY in .env or pass as parameter.")
-        
+            raise ValueError("OpenRouter API key required. Set OPENROUTER_API_KEY in .env")
+        return ChatOpenAI(
+            model=settings.OPENROUTER_MODEL,
+            openai_api_key=key,
+            openai_api_base="https://openrouter.ai/api/v1",
+            temperature=0.7,
+            default_headers={
+                "HTTP-Referer": "http://localhost:8000",
+                "X-Title": "DocGenie"
+            }
+        )
+
+    @staticmethod
+    def _get_google_llm(api_key: str = None):
+        key = api_key or os.getenv("GOOGLE_API_KEY") or settings.GOOGLE_API_KEY
+        if not key:
+            raise ValueError("Google AI API key required. Set GOOGLE_API_KEY in .env")
         return ChatGoogleGenerativeAI(
             model="gemini-2.0-flash",
             google_api_key=key,
             temperature=0.7,
             convert_system_message_to_human=True
         )
-    
-    @staticmethod
-    def get_retriever(customer_id: str, api_key: str = None, k: int = None):
-        """
-        Get retriever from ChromaDB for a customer.
-        
-        Args:
-            customer_id: Unique identifier for customer
-            api_key: Cohere API key (optional)
-            k: Number of chunks to retrieve (defaults to config)
-        
-        Returns:
-            ChromaDB retriever
-        """
-        from services.vector_store import VectorStore
-        vector_store = VectorStore.get_collection(customer_id, api_key)
-        
-        # Use provided k or default from config
-        k_value = k or settings.DEFAULT_K
-        
-        return vector_store.as_retriever(search_kwargs={"k": k_value})
-    
-    @staticmethod
-    def get_qa_chain(customer_id: str, google_api_key: str = None, cohere_api_key: str = None, k: int = None):
-        """
-        Get RetrievalQA chain for a customer.
-        
-        Args:
-            customer_id: Unique identifier for the customer
-            google_api_key: Google AI Studio API key (optional)
-            cohere_api_key: Cohere API key (optional)
-            k: Number of chunks to retrieve (defaults to config)
-        
-        Returns:
-            RetrievalQA chain instance
-        """
-        llm = ChatService.get_google_llm(google_api_key)
-        retriever = ChatService.get_retriever(customer_id, cohere_api_key, k)
-        
-        # Create RetrievalQA chain
-        qa_chain = RetrievalQA.from_chain_type(
-            llm=llm,
-            retriever=retriever,
-            return_source_documents=True,
-            chain_type="stuff"
-        )
-        
-        return qa_chain
-    
-    @staticmethod
-    async def query(
-        customer_id: str,
-        question: str,
-        api_key: str = None,
-        k: int = None
-    ) -> Dict[str, Any]:
-        """
-        Query the chatbot and get an answer with sources.
 
-        Args:
-            customer_id: Unique identifier for customer (API key)
-            question: User's question
-            api_key: Customer API key (also used as customer_id)
-            k: Number of chunks to retrieve (defaults to config DEFAULT_K)
-
-        Returns:
-            Dictionary with answer, sources, and metadata
-        """
+    @staticmethod
+    async def query(question: str, k: int = None) -> Dict[str, any]:
         import time
-        import os
-        from dotenv import load_dotenv
-        from config import settings
-        
-        # Load environment variables
-        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        env_path = os.path.join(project_root, '.env')
-        load_dotenv(env_path)
-        
-        # Use environment/config keys for AI services (api_key parameter is customer_id only)
-        google_api_key = os.getenv("GOOGLE_API_KEY") or settings.GOOGLE_API_KEY
-        cohere_api_key = os.getenv("COHERE_API_KEY") or settings.COHERE_API_KEY
-        
-        # Validate API keys are provided
-        if not google_api_key:
-            raise ValueError("Google AI API key is required. Set GOOGLE_API_KEY in .env")
-        if not cohere_api_key:
-            raise ValueError("Cohere API key is required. Set COHERE_API_KEY in .env")
-        
         start_time = time.time()
-        
-        try:
-            # Use api_key as customer_id for vector store and retrieval
-            llm = ChatService.get_google_llm(google_api_key)
 
-            # Retrieve relevant documents using similarity search
+        try:
+            llm = ChatService.get_llm()
+
             from services.vector_store import VectorStore
             k_value = k or settings.DEFAULT_K
-            docs = VectorStore.similarity_search(api_key, question, k_value, cohere_api_key)
+            docs = VectorStore.similarity_search(question, k_value)
 
-            # Combine documents for context
             context = "\n\n".join([doc.page_content for doc in docs])
 
-            # Create prompt with context
             from langchain_core.prompts import PromptTemplate
             prompt = PromptTemplate.from_template(
                 """Use the following pieces of context to answer the question at the end.
@@ -156,56 +86,23 @@ class ChatService:
                 Answer:"""
             )
 
-            # Invoke LLM with context
-            from langchain_core.runnables import RunnablePassthrough
             from langchain_core.output_parsers import StrOutputParser
-
             chain = prompt | llm | StrOutputParser()
             answer = await chain.ainvoke({"context": context, "question": question})
-            
-            end_time = time.time()
-            query_time = (end_time - start_time) * 1000  # Convert to milliseconds
 
-            # Extract sources from retrieved docs
             sources = []
             for doc in docs:
-                source = {
+                sources.append({
                     "content": doc.page_content,
                     "metadata": doc.metadata,
                     "source": doc.metadata.get("source", "Unknown")
-                }
-                sources.append(source)
-            
-            response = {
+                })
+
+            return {
                 "answer": answer,
                 "sources": sources,
-                "customer_id": api_key,
-                "query_time_ms": query_time
+                "query_time_ms": (time.time() - start_time) * 1000
             }
-            
-            return response
-            
+
         except Exception as e:
             raise Exception(f"Error processing query: {str(e)}")
-    
-    @staticmethod
-    def query_sync(
-        customer_id: str,
-        question: str,
-        google_api_key: str = None,
-        cohere_api_key: str = None
-    ) -> Dict[str, Any]:
-        """
-        Synchronous version of query method.
-        
-        Args:
-            customer_id: Unique identifier for the customer
-            question: User's question
-            google_api_key: Google AI Studio API key (optional)
-            cohere_api_key: Cohere API key (optional)
-        
-        Returns:
-            Dictionary with answer, sources, and metadata
-        """
-        import asyncio
-        return asyncio.run(ChatService.query(customer_id, question, google_api_key, cohere_api_key))
