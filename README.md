@@ -1,12 +1,6 @@
 # DocGenie — Self-hosted RAG Chatbot
 
-Upload documents, ask questions. A complete RAG pipeline in one Docker container.
-
-```bash
-docker run -d -p 8000:8000 -v $(pwd)/chroma_db:/app/chroma_db --env-file .env docgenie/docgenie
-curl -X POST http://localhost:8000/api/v1/upload -F "file=@doc.pdf"
-curl -X POST http://localhost:8000/api/v1/query -H "Content-Type: application/json" -d '{"query": "What is this about?"}'
-```
+Upload documents, ask questions. A complete RAG pipeline you can run anywhere.
 
 ---
 
@@ -21,7 +15,16 @@ Everything runs via API calls to free-tier AI services — no GPU, no heavy mode
 
 ## Quick Start
 
-### 1. Get Your API Keys
+### 1. Clone & Setup
+
+```bash
+git clone https://github.com/NaniBer/docgenie.git
+cd docgenie
+cp .env.example .env
+# Edit .env with your API keys
+```
+
+### 2. Get Your API Keys
 
 | Service | Why | Sign Up |
 |---|---|---|
@@ -40,74 +43,12 @@ cp .env.example .env
 
 ### 3. Run
 
-**With Docker** (recommended):
-```bash
-docker compose up -d
-```
-
-**Without Docker:**
 ```bash
 pip install -r requirements.txt
 uvicorn main:app --host 0.0.0.0 --port 8000
 ```
 
 The server starts at `http://localhost:8000`.
-
----
-
-## Deployment
-
-Once running, upload a document and ask questions via the API. No UI, no database — just a single container.
-
-### Option 1: VPS (DigitalOcean, Linode, Hetzner, etc.)
-
-```bash
-ssh root@your-vm
-# Install Docker if needed
-curl -fsSL https://get.docker.com | sh
-
-# Create a .env file with your API keys
-cat > .env << EOF
-MODE=cloud
-LLM_PROVIDER=openrouter
-OPENROUTER_API_KEY=sk-or-v1-...
-COHERE_API_KEY=...
-EOF
-
-# Run the container
-docker run -d -p 8000:8000 \
-  -v $(pwd)/chroma_db:/app/chroma_db \
-  --env-file .env \
-  docgenie/docgenie
-```
-
-Your API is now live at `http://your-vm-ip:8000`. Add Nginx with SSL for production.
-
-### Option 2: Railway / Render / Fly.io (serverless)
-
-Connect your GitHub repo to any of these platforms:
-
-1. Set build command: (not needed — use Dockerfile)
-2. Set start command: (not needed)
-3. Add these environment variables:
-   - `MODE=cloud`
-   - `OPENROUTER_API_KEY=...`
-   - `COHERE_API_KEY=...`
-4. Deploy
-
-You'll get a public URL like `docgenie.railway.app`.
-
-### Option 3: Docker Compose (anywhere)
-
-```bash
-git clone https://github.com/youruser/docgenie.git
-cd docgenie
-cp .env.example .env
-# Edit .env with your API keys
-docker compose up -d
-```
-
-Works on any machine with Docker installed.
 
 ---
 
@@ -178,6 +119,8 @@ All options in `.env`:
 | `CHUNK_SIZE` | `500` | Max characters per chunk |
 | `CHUNK_OVERLAP` | `50` | Overlap between chunks |
 | `DEFAULT_K` | `6` | Number of chunks to retrieve per query |
+| `OLLAMA_BASE_URL` | `http://localhost:11434` | Ollama server URL (self-hosted mode) |
+| `OLLAMA_MODEL` | `llama3.2` | Ollama model name (self-hosted mode) |
 
 ---
 

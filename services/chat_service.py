@@ -3,10 +3,6 @@ from langchain_community.chat_models import ChatOllama
 from langchain_openai import ChatOpenAI
 from typing import Dict, Optional
 from config import settings
-import os
-from dotenv import load_dotenv
-
-load_dotenv()
 
 
 class ChatService:
@@ -32,7 +28,7 @@ class ChatService:
 
     @staticmethod
     def _get_openrouter_llm():
-        key = os.getenv("OPENROUTER_API_KEY") or settings.OPENROUTER_API_KEY
+        key = settings.OPENROUTER_API_KEY
         if not key:
             raise ValueError("OpenRouter API key required. Set OPENROUTER_API_KEY in .env")
         return ChatOpenAI(
@@ -48,7 +44,7 @@ class ChatService:
 
     @staticmethod
     def _get_google_llm(api_key: str = None):
-        key = api_key or os.getenv("GOOGLE_API_KEY") or settings.GOOGLE_API_KEY
+        key = api_key or settings.GOOGLE_API_KEY
         if not key:
             raise ValueError("Google AI API key required. Set GOOGLE_API_KEY in .env")
         return ChatGoogleGenerativeAI(

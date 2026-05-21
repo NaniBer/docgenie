@@ -17,10 +17,9 @@ class VectorStore:
                 model_kwargs={'device': 'cpu'},
                 encode_kwargs={'normalize_embeddings': True}
             )
-        key = os.getenv("COHERE_API_KEY")
-        if not key:
+        if not settings.COHERE_API_KEY:
             raise ValueError("Cohere API key required for cloud mode. Set COHERE_API_KEY in .env")
-        return CohereEmbeddings(cohere_api_key=key, model="embed-english-v3.0")
+        return CohereEmbeddings(cohere_api_key=settings.COHERE_API_KEY, model="embed-english-v3.0")
 
     @staticmethod
     def get_collection():
