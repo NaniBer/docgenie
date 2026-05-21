@@ -55,7 +55,61 @@ The server starts at `http://localhost:8000`.
 
 ---
 
-## API
+## Deployment
+
+Once running, upload a document and ask questions via the API. No UI, no database — just a single container.
+
+### Option 1: VPS (DigitalOcean, Linode, Hetzner, etc.)
+
+```bash
+ssh root@your-vm
+# Install Docker if needed
+curl -fsSL https://get.docker.com | sh
+
+# Create a .env file with your API keys
+cat > .env << EOF
+MODE=cloud
+LLM_PROVIDER=openrouter
+OPENROUTER_API_KEY=sk-or-v1-...
+COHERE_API_KEY=...
+EOF
+
+# Run the container
+docker run -d -p 8000:8000 \
+  -v $(pwd)/chroma_db:/app/chroma_db \
+  --env-file .env \
+  docgenie/docgenie
+```
+
+Your API is now live at `http://your-vm-ip:8000`. Add Nginx with SSL for production.
+
+### Option 2: Railway / Render / Fly.io (serverless)
+
+Connect your GitHub repo to any of these platforms:
+
+1. Set build command: (not needed — use Dockerfile)
+2. Set start command: (not needed)
+3. Add these environment variables:
+   - `MODE=cloud`
+   - `OPENROUTER_API_KEY=...`
+   - `COHERE_API_KEY=...`
+4. Deploy
+
+You'll get a public URL like `docgenie.railway.app`.
+
+### Option 3: Docker Compose (anywhere)
+
+```bash
+git clone https://github.com/youruser/docgenie.git
+cd docgenie
+cp .env.example .env
+# Edit .env with your API keys
+docker compose up -d
+```
+
+Works on any machine with Docker installed.
+
+---
 
 All endpoints at `/api/v1/`.
 
