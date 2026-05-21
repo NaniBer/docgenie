@@ -8,13 +8,9 @@ pydantic-settings==2.1.0
 httpx==0.25.1
 requests==2.32.5
 
-# LangChain packages - using compatible versions
 langchain>=0.1.0
 langchain-community>=0.0.10
 langchain-openai>=0.0.2
 langchain-google-genai>=1.0.0
 langchain-cohere>=0.1.0
 langchain-chroma>=0.1.0
-
-# For self-hosted mode (local embeddings)
-sentence-transformers>=2.2.0

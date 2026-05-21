@@ -10,6 +10,9 @@ ENV PYTHONUNBUFFERED=1 \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+COPY requirements-selfhosted.txt .
+# Self-hosted users can install this separately: pip install -r requirements-selfhosted.txt
+
 COPY . .
 
 RUN mkdir -p /app/chroma_db
