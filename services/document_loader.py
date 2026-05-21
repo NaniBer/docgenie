@@ -4,11 +4,19 @@ import os
 
 class DocumentLoader:
 
+    SUPPORTED_EXTENSIONS = {'.pdf', '.txt', '.md'}
+
+    _loaders = {
+        '.pdf': PyPDFLoader,
+        '.txt': TextLoader,
+        '.md': TextLoader,
+    }
     @staticmethod
     def get_loader(file_path: str):
         ext = os.path.splitext(file_path)[1].lower()
-        loaders = {'.pdf': PyPDFLoader, '.txt': TextLoader, '.md': TextLoader}
-        loader_class = loaders.get(ext, UnstructuredFileLoader)
+        if ext not in DocumentLoader.SUPPORTED_EXTENSIONS:
+            raise ValueError(f"Unsupported file type '{ext}'. Supported: {', '.join(sorted(DocumentLoader.SUPPORTED_EXTENSIONS))}")
+        loader_class = DocumentLoader._loaders[ext]
         return loader_class(file_path)
 
     @staticmethod
@@ -17,4 +25,4 @@ class DocumentLoader:
 
     @staticmethod
     def get_supported_extensions():
-        return ['.pdf', '.txt', '.md']
+        return sorted(DocumentLoader.SUPPORTED_EXTENSIONS)

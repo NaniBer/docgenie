@@ -52,11 +52,11 @@ Thumbs.db
 *.log
 
 # Testing
-tests/
-test_*.py
 .pytest_cache/
 .coverage
 htmlcov/
+# Keep test source files committed (not generated test artifacts)
+*.log
 
 # Node (for chatbot component)
 node_modules/
